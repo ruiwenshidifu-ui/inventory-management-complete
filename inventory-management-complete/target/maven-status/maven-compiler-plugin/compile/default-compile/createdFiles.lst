@@ -1,0 +1,8 @@
+com\inventory\management\Product.class
+com\inventory\management\ProductController.class
+com\inventory\management\Inventory.class
+com\inventory\management\InventoryController.class
+com\inventory\management\InsufficientStockException.class
+com\inventory\management\MainApplication.class
+com\inventory\management\ProductNotFoundException.class
+com\inventory\management\InventoryNotFoundException.class
