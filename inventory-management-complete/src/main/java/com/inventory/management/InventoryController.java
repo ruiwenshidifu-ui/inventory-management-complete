@@ -4,6 +4,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -15,6 +16,7 @@ public class InventoryController {
 
     private final Map<String, Inventory> inventoryDB = new HashMap<>();
     private final ProductController productController;
+    private int globalWarningLevel = 10; // 全局预警值
 
     public InventoryController(ProductController productController) {
         this.productController = productController;
@@ -58,7 +60,7 @@ public class InventoryController {
         Inventory inv = new Inventory();
         inv.setProductId(product.getId());
         inv.setCurrentStock(0);
-        inv.setWarningLevel(10);
+        inv.setWarningLevel(globalWarningLevel);
         inv.setLocation("货架-" + product.getCategory());
         inventoryDB.put(product.getId(), inv);
         return "库存记录创建成功";
@@ -70,15 +72,7 @@ public class InventoryController {
         return "库存记录删除成功";
     }
 
-    @PostMapping("/internal/update_warning")
-    public String updateWarningLevel(@RequestParam String productId, @RequestParam int warningLevel) {
-        Inventory inv = inventoryDB.get(productId);
-        if (inv != null) {
-            inv.setWarningLevel(warningLevel);
-            return "预警值更新成功";
-        }
-        return "商品不存在";
-    }
+
 
     private Inventory enrichInventoryItem(Inventory inv) {
         Map<String, Product> products = productController.getAllProductsInternal();
@@ -177,6 +171,102 @@ public class InventoryController {
         stats.put("healthyStockCount", totalProducts - lowStockCount);
         
         return stats;
+    }
+
+    // ===== 新增功能：预警设置 =====
+    @PostMapping("/warning")
+    public String updateWarningLevel(@RequestParam String productId, @RequestParam int warningLevel) {
+        Inventory inv = inventoryDB.get(productId);
+        if (inv == null) {
+            throw new InventoryNotFoundException("Product not found with ID: " + productId);
+        }
+        inv.setWarningLevel(warningLevel);
+        return "预警值更新成功：商品 " + productId + " 的预警值设置为 " + warningLevel;
+    }
+
+    @GetMapping("/warning/{productId}")
+    public int getWarningLevel(@PathVariable String productId) {
+        Inventory inv = inventoryDB.get(productId);
+        if (inv == null) {
+            throw new InventoryNotFoundException("Product not found with ID: " + productId);
+        }
+        return inv.getWarningLevel();
+    }
+
+    @PostMapping("/warning/global")
+    public String setGlobalWarningLevel(@RequestParam int warningLevel) {
+        this.globalWarningLevel = warningLevel;
+        
+        // 更新所有商品的预警值
+        for (Inventory inv : inventoryDB.values()) {
+            inv.setWarningLevel(warningLevel);
+        }
+        
+        return "全局预警值已更新为：" + warningLevel;
+    }
+
+    @GetMapping("/warning/global")
+    public int getGlobalWarningLevel() {
+        return globalWarningLevel;
+    }
+
+    // ===== 新增功能：数据报表 =====
+    @GetMapping("/report/daily")
+    public Map<String, Object> getDailyReport() {
+        List<Inventory> allInventory = inventoryDB.values().stream()
+                .map(this::enrichInventoryItem)
+                .collect(Collectors.toList());
+        
+        long totalProducts = allInventory.size();
+        long lowStockCount = allInventory.stream().filter(Inventory::isLowStock).count();
+        int totalStockValue = allInventory.stream().mapToInt(Inventory::getCurrentStock).sum();
+        
+        // 按分类统计
+        Map<String, Long> categoryStats = allInventory.stream()
+                .collect(Collectors.groupingBy(Inventory::getCategory, Collectors.counting()));
+        
+        Map<String, Object> report = new HashMap<>();
+        report.put("reportDate", LocalDateTime.now().toString());
+        report.put("totalProducts", totalProducts);
+        report.put("lowStockCount", lowStockCount);
+        report.put("totalStockValue", totalStockValue);
+        report.put("healthyStockCount", totalProducts - lowStockCount);
+        report.put("categoryDistribution", categoryStats);
+        report.put("lowStockProducts", allInventory.stream()
+                .filter(Inventory::isLowStock)
+                .map(inv -> Map.of(
+                    "productName", inv.getProductName(),
+                    "currentStock", inv.getCurrentStock(),
+                    "warningLevel", inv.getWarningLevel()
+                ))
+                .collect(Collectors.toList()));
+        
+        return report;
+    }
+
+    // ===== 新增功能：导出库存 =====
+    @GetMapping("/export")
+    public String exportInventory() {
+        List<Inventory> allInventory = inventoryDB.values().stream()
+                .map(this::enrichInventoryItem)
+                .collect(Collectors.toList());
+        
+        StringBuilder csv = new StringBuilder();
+        // CSV 头部
+        csv.append("商品名称,分类,当前库存,预警值,位置,状态,最后更新时间\n");
+        
+        // CSV 数据行
+        for (Inventory inv : allInventory) {
+            String status = inv.isLowStock() ? "低库存" : "正常";
+            String lastUpdate = inv.getLastUpdateTime() != null ? 
+                inv.getLastUpdateTime().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")) : "N/A";
+            
+            csv.append(String.format("\"%s\",\"%s\",%d,%d,\"%s\",\"%s\",\"%s\"\n",
+                inv.getProductName(), inv.getCategory(), inv.getCurrentStock(),
+                inv.getWarningLevel(), inv.getLocation(), status, lastUpdate));
+        }
+        
+        return csv.toString();
     }
 }
 

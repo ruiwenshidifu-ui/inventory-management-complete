@@ -8,19 +8,14 @@ public class Inventory {
     private String location;
     private LocalDateTime lastUpdateTime;
     private int warningLevel;
-    private int minStockLevel;
-    private int maxStockLevel;
 
     // 辅助字段，用于查询结果展示
     private String productName;
     private String category;
     private boolean isLowStock;
-    private boolean isOverStock;
 
     public Inventory() {
         this.lastUpdateTime = LocalDateTime.now();
-        this.minStockLevel = 0;
-        this.maxStockLevel = 1000;
     }
 
     // Getters and Setters
@@ -34,10 +29,6 @@ public class Inventory {
     public void setLastUpdateTime(LocalDateTime lastUpdateTime) { this.lastUpdateTime = lastUpdateTime; }
     public int getWarningLevel() { return warningLevel; }
     public void setWarningLevel(int warningLevel) { this.warningLevel = warningLevel; }
-    public int getMinStockLevel() { return minStockLevel; }
-    public void setMinStockLevel(int minStockLevel) { this.minStockLevel = minStockLevel; }
-    public int getMaxStockLevel() { return maxStockLevel; }
-    public void setMaxStockLevel(int maxStockLevel) { this.maxStockLevel = maxStockLevel; }
 
     public String getProductName() { return productName; }
     public void setProductName(String productName) { this.productName = productName; }
@@ -45,6 +36,4 @@ public class Inventory {
     public void setCategory(String category) { this.category = category; }
     public boolean isLowStock() { return isLowStock; }
     public void setLowStock(boolean lowStock) { isLowStock = lowStock; }
-    public boolean isOverStock() { return isOverStock; }
-    public void setOverStock(boolean overStock) { isOverStock = overStock; }
 }

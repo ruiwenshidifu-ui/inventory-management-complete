@@ -416,8 +416,7 @@
             <div id="inventory" class="section">
                 <div class="batch-actions">
                     <button class="btn btn-success" onclick="batchRestock()">📦 批量补货</button>
-                    <button class="btn btn-warning" onclick="showWarningSettings()">⚙️ 预警设置</button>
-                    <button class="btn" onclick="exportInventory()">📥 导出库存</button>
+                    <button class="btn" onclick="exportInventory()">📥 导出CSV</button>
                 </div>
                 
                 <div class="filters">
@@ -465,19 +464,33 @@
                 </div>
                 
                 <div class="card">
-                    <h2>📋 预警设置</h2>
-                    <div id="warningSettings">
-                        <p>全局预警设置功能开发中...</p>
+                    <h2>⚙️ 预警设置</h2>
+                    <div class="batch-actions">
+                        <div class="form-group">
+                            <label>全局预警值设置（所有商品）：</label>
+                            <div class="controls">
+                                <input type="number" id="globalWarningLevel" value="10">
+                                <button class="btn btn-warning" onclick="setGlobalWarningLevel()">设置全局预警</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="warningSettingsList">
+                        <!-- 单个商品预警设置会动态加载在这里 -->
                     </div>
                 </div>
             </div>
             
             <!-- 数据报表 -->
             <div id="reports" class="section">
+                <div class="action-buttons">
+                    <button class="btn btn-success" onclick="loadReports()">🔄 刷新报表</button>
+                    <button class="btn" onclick="exportInventory()">📥 导出CSV</button>
+                </div>
+                
                 <div class="card">
                     <h2>📊 库存分析报告</h2>
                     <div id="reportsContent">
-                        <p>数据报表功能开发中...</p>
+                        <!-- 报表数据会动态加载在这里 -->
                     </div>
                 </div>
             </div>
@@ -514,19 +527,6 @@
                     <button type="submit" class="btn btn-success">添加商品</button>
                 </div>
             </form>
-        </div>
-    </div>
-
-    <!-- 预警设置模态框 -->
-    <div id="warningModal" class="modal">
-        <div class="modal-content">
-            <h2>库存预警设置</h2>
-            <div id="warningSettingsContent">
-                <!-- 动态加载预警设置 -->
-            </div>
-            <div class="form-buttons">
-                <button class="btn btn-danger" onclick="hideWarningModal()">关闭</button>
-            </div>
         </div>
     </div>
 
@@ -678,7 +678,6 @@
                     <td>
                         <div class="controls">
                             <button class="warning-btn" onclick="deleteProduct('${product.id}')">删除</button>
-                            <button onclick="editProduct('${product.id}')">编辑</button>
                         </div>
                     </td>
                 </tr>
@@ -814,7 +813,7 @@
         const newWarning = prompt('请输入新的预警值:');
         if (newWarning && !isNaN(newWarning)) {
             try {
-                const response = await fetch(`/inventory/internal/update_warning?productId=${productId}&warningLevel=${newWarning}`, {
+                const response = await fetch(`/inventory/warning?productId=${productId}&warningLevel=${newWarning}`, {
                     method: 'POST'
                 });
                 
@@ -897,13 +896,64 @@
 
     // 加载报表数据
     async function loadReports() {
-        // 报表功能占位
-        document.getElementById('reportsContent').innerHTML = `
-            <div style="text-align: center; padding: 40px; color: #7f8c8d;">
-                <h3>📈 数据分析报表</h3>
-                <p>库存趋势分析、销售预测、补货建议等功能开发中...</p>
-            </div>
-        `;
+        try {
+            const response = await fetch('/inventory/report/daily');
+            const report = await response.json();
+            
+            // 显示报表数据
+            document.getElementById('reportsContent').innerHTML = `
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <h3>商品总数</h3>
+                        <div class="number">${report.totalProducts}</div>
+                    </div>
+                    <div class="stat-card warning">
+                        <h3>低库存商品</h3>
+                        <div class="number">${report.lowStockCount}</div>
+                    </div>
+                    <div class="stat-card success">
+                        <h3>健康库存</h3>
+                        <div class="number">${report.healthyStockCount}</div>
+                    </div>
+                    <div class="stat-card">
+                        <h3>库存总量</h3>
+                        <div class="number">${report.totalStockValue}</div>
+                    </div>
+                </div>
+                <div class="card">
+                    <h3>📋 分类分布</h3>
+                    <div style="padding: 20px;">
+                        ${Object.entries(report.categoryDistribution || {}).map(([category, count]) => `
+                            <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #eee;">
+                                <span>${category}</span>
+                                <span style="font-weight: bold;">${count} 个商品</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+                ${report.lowStockProducts && report.lowStockProducts.length > 0 ? `
+                <div class="card alert-card">
+                    <h3>🚨 低库存商品详情</h3>
+                    <div style="padding: 20px;">
+                        ${report.lowStockProducts.map(product => `
+                            <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #ffeaa7;">
+                                <span>${product.productName}</span>
+                                <span class="low-stock">库存: ${product.currentStock} (预警: ${product.warningLevel})</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+                ` : ''}
+            `;
+        } catch (error) {
+            console.error('加载报表失败:', error);
+            document.getElementById('reportsContent').innerHTML = `
+                <div style="text-align: center; padding: 40px; color: #e74c3c;">
+                    <h3>❌ 加载报表失败</h3>
+                    <p>请检查网络连接或稍后重试</p>
+                </div>
+            `;
+        }
     }
 
     // 添加商品功能
@@ -979,6 +1029,51 @@
         if (currentSection === 'products') await loadProducts();
         if (currentSection === 'inventory') await loadInventory();
         if (currentSection === 'alerts') await loadAlerts();
+        if (currentSection === 'reports') await loadReports();
+    }
+
+    // ===== 新增功能：预警设置 =====
+    async function setGlobalWarningLevel() {
+        const warningLevel = document.getElementById('globalWarningLevel').value;
+        if (!warningLevel || isNaN(warningLevel)) {
+            alert('请输入有效的预警值！');
+            return;
+        }
+        
+        try {
+            const response = await fetch(`/inventory/warning/global?warningLevel=${warningLevel}`, {
+                method: 'POST'
+            });
+            if (response.ok) {
+                showSuccess('全局预警值设置成功！');
+                await reloadAllData();
+            } else {
+                showError('全局预警值设置失败！');
+            }
+        } catch (error) {
+            console.error('设置全局预警值失败:', error);
+            showError('设置全局预警值时发生错误！');
+        }
+    }
+
+    // ===== 新增功能：导出库存 =====
+    async function exportInventory() {
+        try {
+            const response = await fetch('/inventory/export');
+            const csvData = await response.text();
+            
+            // 创建下载链接
+            const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `库存报表_${new Date().toLocaleDateString().replace(/\//g, '-')}.csv`;
+            link.click();
+            
+            showSuccess('库存数据导出成功！');
+        } catch (error) {
+            console.error('导出失败:', error);
+            showError('导出失败！');
+        }
     }
 
     // 工具函数
@@ -996,22 +1091,9 @@
         alert('❌ ' + message);
     }
 
-    // 导出功能
+    // 导出商品功能（暂未实现）
     async function exportProducts() {
-        showSuccess('导出功能开发中...');
-    }
-
-    async function exportInventory() {
-        showSuccess('导出功能开发中...');
-    }
-
-    // 预警设置
-    function showWarningSettings() {
-        showSuccess('预警设置功能开发中...');
-    }
-
-    function hideWarningModal() {
-        document.getElementById('warningModal').style.display = 'none';
+        showSuccess('商品导出功能开发中...');
     }
 
     // 点击模态框外部关闭
@@ -1048,6 +1130,10 @@
                 case '4':
                     e.preventDefault();
                     showSection('alerts');
+                    break;
+                case '5':
+                    e.preventDefault();
+                    showSection('reports');
                     break;
             }
         }
