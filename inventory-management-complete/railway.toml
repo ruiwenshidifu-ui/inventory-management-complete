@@ -1,0 +1,9 @@
+[build]
+builder = "NIXPACKS"
+
+[deploy]
+startCommand = "java -jar target/inventory-complete-1.0.0.jar"
+
+[healthcheck]
+path = "/products"
+timeout = 300
