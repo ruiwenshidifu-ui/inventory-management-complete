@@ -1,0 +1,11 @@
+{
+  "build": {
+    "builder": "RAILWAY_BOILERPLATE_JAVA",
+    "buildCommand": "mvn clean package"
+  },
+  "deploy": {
+    "startCommand": "java -jar target/inventory-complete-1.0.0.jar",
+    "healthcheckPath": "/products",
+    "healthcheckTimeout": 300
+  }
+}
